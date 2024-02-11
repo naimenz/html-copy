@@ -12,6 +12,9 @@ pyperclip = "^1.8.2"
 pynput = "^1.7.6"
 pygobject = "^3.46.0"
 pyqt5 = "^5.15.10"
+beautifulsoup4 = "^4.12.3"
+lxml = "^5.1.0"
+markdown = "^3.5.2"
 
 
 [tool.poetry.group.dev.dependencies]
