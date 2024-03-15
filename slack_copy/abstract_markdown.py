@@ -29,7 +29,6 @@ class AbstractMarkdownTree:
     def from_obsidian(text: str, is_html: bool = True) -> "AbstractMarkdownTree":
         if not is_html:
             text = parse_obsidian_markdown(text)
-            print(text)
         soup = bs4.BeautifulSoup(text, "lxml")
         root = _parse_soup_tag(soup)
         assert root is not None
@@ -65,6 +64,9 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
     """
     # base cases
     if isinstance(tag, bs4.element.NavigableString):
+        if tag.strip() == "":
+            # skipping solitary newlines and empty strings
+            return None
         return AMLeaf(children=[], text=tag, styles=[], url=None)
     if not isinstance(tag, bs4.element.Tag):
         print(f"Base: Cannot parse type {type(tag)}: {tag}")
@@ -120,7 +122,7 @@ def parse_obsidian_markdown(text):
     
     (Help from https://claude.ai/chat/63a0feed-2065-4216-90d5-b10232326d5b)"""
     preprocessed_text = preprocess_obsidian_markdown(text)
-    html = markdown.markdown(preprocessed_text, extensions=['nl2br', "sane_lists"])
+    html = markdown.markdown(preprocessed_text, extensions=["sane_lists"])
     return html
 
 def preprocess_obsidian_markdown(text):

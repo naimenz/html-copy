@@ -63,8 +63,9 @@ class AMList(AMNode):
         list_html = ""
         # generate html iteratively (to handle nested lists)
         for child in self.children:
+            child_html = child.to_html()
             if isinstance(child, AMList):
-                list_html += f"{child.to_html()}"
+                list_html += f"{child_html}"
             else:
-                list_html += f"<li>{child.to_html()}</li>"
+                list_html += f"<li>{child_html}</li>"
         return f"<{list_type}>{list_html}</{list_type}>"
