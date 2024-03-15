@@ -117,31 +117,37 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
     print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {tag.children}")
     return None
 
+
 def parse_obsidian_markdown(text):
     """Parse obsidian-flavored markdown (in particular, lists) into HTML.
-    
+
     (Help from https://claude.ai/chat/63a0feed-2065-4216-90d5-b10232326d5b)"""
     preprocessed_text = preprocess_obsidian_markdown(text)
     html = markdown.markdown(preprocessed_text, extensions=["sane_lists"])
     return html
 
+
 def preprocess_obsidian_markdown(text):
     # Regular expression pattern to match text followed by a list without a newline
-    pattern = re.compile(r'(.*)\n((?:[*+-] .*(?:\n|$))+)', re.MULTILINE)
+    pattern = re.compile(r"(.*)\n((?:[*+-] .*(?:\n|$))+)", re.MULTILINE)
 
     # Replace matched patterns with text followed by two newlines and the list
     def replace_unordered(match):
-        return f'{match.group(1)}\n\n{match.group(2)}'
+        return f"{match.group(1)}\n\n{match.group(2)}"
 
     processed_text = pattern.sub(replace_unordered, text)
 
-    pattern = re.compile(r'(.*)\n((?:\d+\. .*(?:\n|$))+)', re.MULTILINE)
+    pattern = re.compile(r"(.*)\n((?:\d+\. .*(?:\n|$))+)", re.MULTILINE)
 
     # Replace matched patterns with text followed by two newlines and the list
     def replace_ordered(match):
-        return f'{match.group(1)}\n\n{match.group(2)}'
+        return f"{match.group(1)}\n\n{match.group(2)}"
 
     processed_text = pattern.sub(replace_ordered, processed_text)
 
-    return processed_text
+    # Add a newline between the end of the list and continued text
+    # (from https://claude.ai/chat/78f86edb-cd82-43b4-bae2-ea891f9a1f67)
+    pattern = r"(?m)^(?:(?:\s*\d+\.|\s*-)\s+.*(?:\n(?:\s*\d+\.|\s*-)\s+.*)*)\n(?!\s*(?:\d+\.|-)\s)"
+    processed_text = re.sub(pattern, r"\g<0>\n", processed_text)
 
+    return processed_text
