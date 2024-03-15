@@ -28,7 +28,7 @@ class AbstractMarkdownTree:
     @staticmethod
     def from_obsidian(text: str, is_html: bool = True) -> "AbstractMarkdownTree":
         if not is_html:
-            text = parse_obsidian_md(text)
+            text = parse_obsidian_markdown(text)
             print(text)
         soup = bs4.BeautifulSoup(text, "lxml")
         root = _parse_soup_tag(soup)
@@ -115,49 +115,31 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
     print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {tag.children}")
     return None
 
-
-def _add_newlines_before_lists(text: str) -> str:
-    """
-    Add a newline before each bulleted list in a string.
-    """
-    # Regular expression to find list items
-    # This matches lines starting with a list item that do not have a preceding newline.
-    list_item_pattern = re.compile(r"(?<!\n)(\n- |\n\d+\. )")
-    # Insert a newline before list items that don't already have one
-    # The \1 in the replacement string refers to the matched list item prefix (- or a digit followed by .), preserving it.
-    processed_content = re.sub(list_item_pattern, r"\n\1", text)
-    return processed_content
-
-    # # for each line in the text, if it is the first line of a list, add a newline before it
-    # new_text = ""
-    # previous_starts_with_list = False
-    # for i, line in enumerate(text.split("\n")):
-    #     line_starts_with_list = line.strip().startswith("-") or line.strip().startswith("1.")
-    #     if not previous_starts_with_list and line_starts_with_list:
-    #         new_text += "\n"
-    #     new_text += line + "\n"
-    #     previous_starts_with_list = line_starts_with_list
-    # return new_text
-
-
-def parse_obsidian_md(text: str) -> str:
-    """
-    Parse a string in Obsidian's markdown format to html.
-    (from https://github.com/mfarragher/obsidiantools/blob/main/obsidiantools/md_utils.py)
-    """
-    html = markdown.markdown(
-        text,
-        output_format="html",
-        extensions=[
-            "pymdownx.arithmatex",
-            "pymdownx.superfences",
-            "pymdownx.mark",
-            "pymdownx.tilde",
-            "pymdownx.saneheaders",
-            "footnotes",
-            "sane_lists",
-            "tables",
-        ],
-        extension_configs={"pymdownx.tilde": {"subscript": False}},
-    )
+def parse_obsidian_markdown(text):
+    """Parse obsidian-flavored markdown (in particular, lists) into HTML.
+    
+    (Help from https://claude.ai/chat/63a0feed-2065-4216-90d5-b10232326d5b)"""
+    preprocessed_text = preprocess_obsidian_markdown(text)
+    html = markdown.markdown(preprocessed_text, extensions=['nl2br', "sane_lists"])
     return html
+
+def preprocess_obsidian_markdown(text):
+    # Regular expression pattern to match text followed by a list without a newline
+    pattern = re.compile(r'(.*)\n((?:[*+-] .*(?:\n|$))+)', re.MULTILINE)
+
+    # Replace matched patterns with text followed by two newlines and the list
+    def replace_unordered(match):
+        return f'{match.group(1)}\n\n{match.group(2)}'
+
+    processed_text = pattern.sub(replace_unordered, text)
+
+    pattern = re.compile(r'(.*)\n((?:\d+\. .*(?:\n|$))+)', re.MULTILINE)
+
+    # Replace matched patterns with text followed by two newlines and the list
+    def replace_ordered(match):
+        return f'{match.group(1)}\n\n{match.group(2)}'
+
+    processed_text = pattern.sub(replace_ordered, processed_text)
+
+    return processed_text
+
