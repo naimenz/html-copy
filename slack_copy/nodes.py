@@ -1,5 +1,5 @@
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Literal
 import typing
@@ -13,6 +13,10 @@ class AMNode(ABC):
     Node in an AbstractMarkdownTree.
     """
     children: list["AMNode"]
+
+    @abstractmethod
+    def to_html(self) -> str:
+        pass
 
 @dataclass
 class AMLeaf(AMNode):
@@ -28,6 +32,10 @@ class AMLeaf(AMNode):
     def __post_init__(self):
         assert self.children == [], "Leaf nodes cannot have children"
 
+    def to_html(self) -> str:
+        if self.url is not None:
+            return f'<a href="{self.url}">{self.text}</a>'
+        return self.text
 
 @dataclass
 class AMContainer(AMNode):
@@ -38,6 +46,9 @@ class AMContainer(AMNode):
     """
     styles: list[Style]
 
+    def to_html(self) -> str:
+        return f"<span>{''.join(child.to_html() for child in self.children)}</span>"
+
 @dataclass
 class AMList(AMNode):
     """
@@ -46,3 +57,14 @@ class AMList(AMNode):
     Similar to ul or ol in HTML.
     """
     ordered: bool
+
+    def to_html(self) -> str:
+        list_type = "ol" if self.ordered else "ul"
+        list_html = ""
+        # generate html iteratively (to handle nested lists)
+        for child in self.children:
+            if isinstance(child, AMList):
+                list_html += f"{child.to_html()}"
+            else:
+                list_html += f"<li>{child.to_html()}</li>"
+        return f"<{list_type}>{list_html}</{list_type}>"

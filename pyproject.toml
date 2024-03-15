@@ -15,6 +15,7 @@ pyqt5 = "^5.15.10"
 beautifulsoup4 = "^4.12.3"
 lxml = "^5.1.0"
 markdown = "^3.5.2"
+pymdown-extensions = "^10.7.1"
 
 
 [tool.poetry.group.dev.dependencies]

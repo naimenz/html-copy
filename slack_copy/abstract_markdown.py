@@ -1,3 +1,4 @@
+import re
 import typing
 import markdown
 from typing import Literal
@@ -8,6 +9,7 @@ from slack_copy.nodes import AMLeaf, AMList, AMNode, AMContainer
 
 Style = Literal["bold", "italic", "underline", "strikethrough", "code"]
 styles: tuple[Style, ...] = typing.get_args(Style)
+
 
 class AbstractMarkdownTree:
     """
@@ -20,12 +22,14 @@ class AbstractMarkdownTree:
     def __init__(self, root: AMNode) -> None:
         self.root = root
 
+    def to_html(self) -> str:
+        return self.root.to_html()
+
     @staticmethod
     def from_obsidian(text: str, is_html: bool = True) -> "AbstractMarkdownTree":
         if not is_html:
-            # TODO (ian): Add some preprocessing to make sure lists are parsed
-            # correctly (e.g. blank lines)
-            text = markdown.markdown(text)
+            text = parse_obsidian_md(text)
+            print(text)
         soup = bs4.BeautifulSoup(text, "lxml")
         root = _parse_soup_tag(soup)
         assert root is not None
@@ -51,9 +55,9 @@ class AbstractMarkdownTree:
         assert root is not None
         return AbstractMarkdownTree(root)
 
-
     def to_gdocs(self) -> str:
         raise NotImplementedError
+
 
 def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
     """
@@ -110,3 +114,50 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
 
     print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {tag.children}")
     return None
+
+
+def _add_newlines_before_lists(text: str) -> str:
+    """
+    Add a newline before each bulleted list in a string.
+    """
+    # Regular expression to find list items
+    # This matches lines starting with a list item that do not have a preceding newline.
+    list_item_pattern = re.compile(r"(?<!\n)(\n- |\n\d+\. )")
+    # Insert a newline before list items that don't already have one
+    # The \1 in the replacement string refers to the matched list item prefix (- or a digit followed by .), preserving it.
+    processed_content = re.sub(list_item_pattern, r"\n\1", text)
+    return processed_content
+
+    # # for each line in the text, if it is the first line of a list, add a newline before it
+    # new_text = ""
+    # previous_starts_with_list = False
+    # for i, line in enumerate(text.split("\n")):
+    #     line_starts_with_list = line.strip().startswith("-") or line.strip().startswith("1.")
+    #     if not previous_starts_with_list and line_starts_with_list:
+    #         new_text += "\n"
+    #     new_text += line + "\n"
+    #     previous_starts_with_list = line_starts_with_list
+    # return new_text
+
+
+def parse_obsidian_md(text: str) -> str:
+    """
+    Parse a string in Obsidian's markdown format to html.
+    (from https://github.com/mfarragher/obsidiantools/blob/main/obsidiantools/md_utils.py)
+    """
+    html = markdown.markdown(
+        text,
+        output_format="html",
+        extensions=[
+            "pymdownx.arithmatex",
+            "pymdownx.superfences",
+            "pymdownx.mark",
+            "pymdownx.tilde",
+            "pymdownx.saneheaders",
+            "footnotes",
+            "sane_lists",
+            "tables",
+        ],
+        extension_configs={"pymdownx.tilde": {"subscript": False}},
+    )
+    return html
