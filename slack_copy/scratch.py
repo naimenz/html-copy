@@ -15,6 +15,12 @@ obsidian_md_string = dataclasses.asdict(obsidian_md_amtree.root)
 obsidian_md_html = obsidian_md_amtree.to_html()
 print(obsidian_md_html)
 
+gdocs_amtree = AbstractMarkdownTree.from_gdocs(BASIC_EXAMPLE["gdocs"])
+gdocs_string = dataclasses.asdict(gdocs_amtree.root)
+gdocs_html = gdocs_amtree.to_html()
+print(gdocs_html)
+assert gdocs_html == obsidian_md_html
+
 
 
 

@@ -3,6 +3,8 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QClipboard
 from PyQt5 import QtCore
 
+from slack_copy.abstract_markdown import AbstractMarkdownTree
+
 # Create a Qt application instance
 app = QApplication([])
 
@@ -22,8 +24,8 @@ def paste_from_clipboard():
 def copy_html_to_clipboard(html):
     clipboard = app.clipboard()
     mime_data = QtCore.QMimeData()
-    mime_data.setHtml("This is <b>HTML</b>")
-    mime_data.setText("This is text")
+    mime_data.setHtml(html)
+    mime_data.setText("")
     clipboard.setMimeData(mime_data)
 
 
@@ -44,10 +46,18 @@ copy_html_to_clipboard(
 )
 print(paste_html_from_clipboard())
 
-while True:
-    text = pyperclip.waitForNewPaste()
-    print(f"New text on clipboard from pyperclip: {text}")
-    print(f"New text/plain from Qt: {paste_from_clipboard()}")
-    print(f"New text/html from Qt: {paste_html_from_clipboard()}")
-    print("Setting clipboard to 'Hello, Qt Clipboard!'")
-    copy_to_clipboard("Hello, Qt Clipboard!")
+count = 0
+text = pyperclip.waitForNewPaste()
+count += 1
+print(f"New paste {count}: {text}")
+print(f"New text on clipboard from pyperclip: {text}")
+# print(f"New text/plain from Qt: {paste_from_clipboard()}")
+print(f"New text/html from Qt: {paste_html_from_clipboard()}")
+text = paste_html_from_clipboard()
+# print("Setting text/html to html")
+# TODO (ian): clean this up significantly
+amtree = AbstractMarkdownTree.from_slack(text)
+html = amtree.to_html()
+# obsidian_md_amtree = AbstractMarkdownTree.from_obsidian(text, is_html=False)
+# obsidian_md_html = obsidian_md_amtree.to_html()
+copy_html_to_clipboard(html)
