@@ -69,11 +69,19 @@ def text_to_amtree(text: str) -> AbstractMarkdownTree:
     # for now, we'll assume that if it's not HTML, it's from Obsidian
     return AbstractMarkdownTree.from_obsidian(text, is_html=False)
 
-def process_contents(contents: ClipboardContents) -> ClipboardContents:
+def cb_to_amtree(contents: ClipboardContents) -> AbstractMarkdownTree:
     if contents.html != "":
         amtree = html_to_amtree(contents.html)
     else:
         amtree = text_to_amtree(contents.text)
+    return amtree
+
+def process_contents(contents: ClipboardContents) -> ClipboardContents:
+    try:
+        amtree = cb_to_amtree(contents)
+    except ValueError:
+        print(f"Couldn't parse: {contents}")
+        return contents
     html = amtree.to_html()
     return ClipboardContents(contents.text, html)
  
