@@ -1,63 +1,92 @@
-import pyperclip
+from dataclasses import dataclass
+import time
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtGui import QClipboard
 from PyQt5 import QtCore
+from PyQt5.QtCore import QMimeData
+import sys
 
 from slack_copy.abstract_markdown import AbstractMarkdownTree
 
-# Create a Qt application instance
-app = QApplication([])
+@dataclass
+class ClipboardContents:
+    text: str
+    html: str
 
+SourceIndicators = {
+    "gdocs": "docs-internal",
+    "obsidian": "Microsoft YaHei Light",
+    "slack": "Slack",
+}
 
-# Function to copy text to the clipboard
-def copy_to_clipboard(text):
-    clipboard = app.clipboard()
-    clipboard.setText(text)
+class ClipboardWrapper:
+    def __init__(self):
+        # Ensure a QApplication instance exists
+        self.app = QApplication.instance() or QApplication(sys.argv)
+        self.clipboard: QClipboard = self.app.clipboard()  # type: ignore
+        self.loop = None
 
+    def get_clipboard_contents(self):
+        text = self.clipboard.text()
+        mime_data: QMimeData = self.clipboard.mimeData()  # type: ignore
+        if mime_data.hasHtml():
+            html = mime_data.html()
+        else:
+            html = ""
+        return ClipboardContents(text, html)
+    
+    def set_clipboard_contents(self, contents: ClipboardContents):
+        mime_data = QtCore.QMimeData()
+        mime_data.setText(contents.text)
+        mime_data.setHtml(contents.html)
+        self.clipboard.setMimeData(mime_data)
 
-# Function to paste text from the clipboard
-def paste_from_clipboard():
-    clipboard = app.clipboard()
-    return clipboard.text()
+    def wait_for_new_paste(self, sleep_seconds: float = 0.1) -> ClipboardContents:
+        """Waits for new content on the clipboard."""
+        original_contents = self.get_clipboard_contents()
+        while True:
+            current_contents = self.get_clipboard_contents()
+            if current_contents != original_contents:
+                return current_contents
+            time.sleep(sleep_seconds)
 
+    def shutdown(self):
+        self.app.quit()
 
-def copy_html_to_clipboard(html):
-    clipboard = app.clipboard()
-    mime_data = QtCore.QMimeData()
-    mime_data.setHtml(html)
-    mime_data.setText("")
-    clipboard.setMimeData(mime_data)
-
-
-def paste_html_from_clipboard():
-    clipboard = app.clipboard()
-    mime_data = clipboard.mimeData()
-    if mime_data.hasHtml():
-        return mime_data.html()
+def html_to_amtree(html: str) -> AbstractMarkdownTree:
+    # work out which kind of html it is and then parse
+    if SourceIndicators["gdocs"] in html:
+        return AbstractMarkdownTree.from_gdocs(html)
+    elif SourceIndicators["slack"] in html:
+        return AbstractMarkdownTree.from_slack(html)
+    # I think this font is only used in Obsidian
+    elif SourceIndicators["obsidian"] in html:
+        raise NotImplementedError("Haven't implemented parsing from Obsidian yet")
     else:
-        return None
+        raise ValueError("Unknown source for HTML")
 
+def text_to_amtree(text: str) -> AbstractMarkdownTree:
+    # for now, we'll assume that if it's not HTML, it's from Obsidian
+    return AbstractMarkdownTree.from_obsidian(text, is_html=False)
 
-# Example usage
+def process_contents(contents: ClipboardContents) -> ClipboardContents:
+    if contents.html != "":
+        amtree = html_to_amtree(contents.html)
+    else:
+        amtree = text_to_amtree(contents.text)
+    html = amtree.to_html()
+    return ClipboardContents(contents.text, html)
+ 
+def main():
+    while True:
+        cb = ClipboardWrapper()
+        contents = cb.wait_for_new_paste() 
+        processed_contents = process_contents(contents) 
+        cb.set_clipboard_contents(processed_contents)
+        contents = cb.get_clipboard_contents()
+        cb.shutdown()
+        # we have to delete and recreate to avoid a hanging bug
+        del cb
 
-copy_to_clipboard("Hello, Qt Clipboard!")
-copy_html_to_clipboard(
-    """<meta charset='utf-8'><ul data-stringify-type="unordered-list" class="p-rich_text_list p-rich_text_list__bullet" data-indent="0" data-border="0" style="box-sizing: inherit; margin: 0px; padding: 0px; list-style-type: none; color: rgb(209, 210, 211); font-family: Slack-Lato, Slack-Fractions, appleLogo, sans-serif; font-size: 15px; font-style: normal; font-variant-ligatures: common-ligatures; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: left; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(34, 37, 41); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;"><li data-stringify-indent="0" data-stringify-border="0" style="box-sizing: inherit; margin-bottom: 0px; margin-left: var(--dt_static_space-175); list-style-type: none;">Pay for a mobile barista service, a mobile massage service, or similar fun destressing services to come to Constellation</li><li data-stringify-indent="0" data-stringify-border="0" style="box-sizing: inherit; margin-bottom: 0px; margin-left: var(--dt_static_space-175); list-style-type: none;">For barista, it's just open bar for a few hours</li></ul>"""
-)
-print(paste_html_from_clipboard())
-
-count = 0
-text = pyperclip.waitForNewPaste()
-count += 1
-print(f"New paste {count}: {text}")
-print(f"New text on clipboard from pyperclip: {text}")
-# print(f"New text/plain from Qt: {paste_from_clipboard()}")
-print(f"New text/html from Qt: {paste_html_from_clipboard()}")
-text = paste_html_from_clipboard()
-# print("Setting text/html to html")
-# TODO (ian): clean this up significantly
-amtree = AbstractMarkdownTree.from_slack(text)
-html = amtree.to_html()
-# obsidian_md_amtree = AbstractMarkdownTree.from_obsidian(text, is_html=False)
-# obsidian_md_html = obsidian_md_amtree.to_html()
-copy_html_to_clipboard(html)
+if __name__ == "__main__":
+    main()
