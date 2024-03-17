@@ -86,6 +86,7 @@ def main():
         contents = cb.get_clipboard_contents()
         cb.shutdown()
         # we have to delete and recreate to avoid a hanging bug
+        # TODO (gh#1): fix the hanging bug
         del cb
 
 if __name__ == "__main__":
