@@ -79,8 +79,9 @@ def cb_to_amtree(contents: ClipboardContents) -> AbstractMarkdownTree:
 def process_contents(contents: ClipboardContents) -> ClipboardContents:
     try:
         amtree = cb_to_amtree(contents)
-    except ValueError:
+    except ValueError as e:
         print(f"Couldn't parse: {contents}")
+        print(f"Error: {e}")
         return contents
     html = amtree.to_html()
     return ClipboardContents(contents.text, html)
