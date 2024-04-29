@@ -63,8 +63,17 @@ class AMList(AMNode):
     List node in an AbstractMarkdownTree.
 
     Similar to ul or ol in HTML.
+
+    Args:
+        ordered: Whether the list is ordered (True) or unordered (False).
+        data_indent: The indentation level of the list (only used when parsing
+            Slack HTML, which uses margin-left for indentation instead of nested
+            lists).
+
     """
     ordered: bool
+    data_indent: int | None = None
+
 
     def to_html(self) -> str:
         list_type = "ol" if self.ordered else "ul"
