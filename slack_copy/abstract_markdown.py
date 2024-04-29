@@ -113,9 +113,13 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
             return parsed_children[0]
         return AMContainer(children=parsed_children, styles=[])
     if tag.name == "ul":
-        return AMList(children=parsed_children, ordered=False)
+        data_indent = tag.attrs.get("data-indent")
+        data_indent = int(data_indent) if data_indent is not None else None
+        return AMList(children=parsed_children, ordered=False, data_indent=data_indent)
     if tag.name == "ol":
-        return AMList(children=parsed_children, ordered=True)
+        data_indent = tag.attrs.get("data-indent")
+        data_indent = int(data_indent) if data_indent is not None else None
+        return AMList(children=parsed_children, ordered=True, data_indent=data_indent)
 
     print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {tag.children}")
     return None
