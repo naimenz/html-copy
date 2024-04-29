@@ -27,7 +27,7 @@ class AMLeaf(AMNode):
     """
     text: str
     styles: list[Style]
-    url: str | None
+    url: str | None = None
     
     def __post_init__(self):
         assert self.children == [], "Leaf nodes cannot have children"
@@ -43,11 +43,19 @@ class AMContainer(AMNode):
     Container node in an AbstractMarkdownTree.
 
     Similar to div, span, body, etc in HTML; basically a container for other nodes.
+
+    If a url is given, the container should be a hyperlink tag (<a>).
     """
     styles: list[Style]
+    url: str | None = None
 
     def to_html(self) -> str:
-        return f"<span>{''.join(child.to_html() for child in self.children)}</span>"
+        tag = "a" if self.url is not None else "span"
+        content = "".join(child.to_html() for child in self.children)
+        if self.url is not None:
+            return f'<a href="{self.url}">{content}</a>'
+        else:
+            return f'<span>{content}</span>'
 
 @dataclass
 class AMList(AMNode):

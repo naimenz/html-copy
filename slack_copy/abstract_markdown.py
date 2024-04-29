@@ -73,15 +73,18 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
         return None
     # now we assume it's a tag
     children = list(tag.children)
-    if tag.name == "a":
-        assert len(children) == 0
-        return AMLeaf([], tag.text, [], tag.attrs["href"])
 
     # potentially recursive cases
     parsed_children = [_parse_soup_tag(c) for c in children]
     parsed_children = [c for c in parsed_children if c is not None]
     if len(parsed_children) == 0:
         return None
+
+    if tag.name == "a":
+        if len(children) == 0:
+            return AMLeaf(children=[], text=tag.text, styles=[], url=tag.attrs["href"])
+        else:
+            return AMContainer(children=parsed_children, styles=[], url=tag.attrs["href"])
 
     if tag.name in ["strong", "b"]:
         if len(children) == 0:
