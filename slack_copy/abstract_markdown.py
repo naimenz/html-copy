@@ -78,7 +78,7 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
         return None
     
     # TODO (ian): Move slack-specific parsing somewhere else.
-    children = maybe_parse_slack_lists(parsed_children)
+    parsed_children = maybe_parse_slack_lists(parsed_children)
 
     if tag.name == "a":
         if len(children) == 0:
