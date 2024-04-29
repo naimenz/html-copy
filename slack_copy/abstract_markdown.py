@@ -64,9 +64,6 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
     """
     # base cases
     if isinstance(tag, bs4.element.NavigableString):
-        if tag.strip() == "":
-            # skipping solitary newlines and empty strings
-            return None
         return AMLeaf(children=[], text=tag, styles=[], url=None)
     if not isinstance(tag, bs4.element.Tag):
         print(f"Base: Cannot parse type {type(tag)}: {tag}")
