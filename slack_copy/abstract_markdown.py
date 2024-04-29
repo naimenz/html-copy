@@ -248,20 +248,22 @@ def parse_slack_lists_once(siblings: list[AMList]) -> list[AMList]:
         # If the list is one more deeply nested than the previous one, make it a child.
         if sibling.data_indent == previous_sibling.data_indent + 1:
             previous_sibling.children.append(sibling)
-            # Remove the nested sibling from the list to return, since it is now
+            # Remove the sibling from the list to return, since it is now
             # a child of the previous sibling.
-            siblings.pop(i + 1)
+            reversed_siblings.pop(i)
             break
             
         # If they are at the same level, combine them.
         if sibling.data_indent == previous_sibling.data_indent:
-            sibling.children.extend(previous_sibling.children)
-            siblings.pop(i + 1)
+            previous_sibling.children.extend(sibling.children)
+            # Remove the sibling from the list to return, since it is now
+            # combined with the previous sibling.
+            reversed_siblings.pop(i)
             break
         
         # Otherwise, we just continue to the next pair.
 
-    return siblings
+    return list(reversed(reversed_siblings))
 
 def parse_obsidian_markdown(text):
     """Parse obsidian-flavored markdown (in particular, lists) into HTML.
