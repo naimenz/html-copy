@@ -19,3 +19,4 @@ To use it at the moment, you should:
         - Your clipboard is processed locally using `PyQt5`
         - You clipboard content is not stored or sent anywhere.
         - If the format is not a match, it should leave your clipboard alone.
+3. I'd recommend opening a new terminal, activating the `venv`, running `slack-copy` in there, and leaving it open. 
