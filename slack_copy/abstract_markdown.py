@@ -159,8 +159,9 @@ def build_mixed_list(children: list[AMNode]) -> list[list[AMNode] | AMNode]:
         if isinstance(child, AMList):
             current_group_of_amlists.append(child)
         else:
-            mixed_list.append(current_group_of_amlists)
-            current_group_of_amlists = []
+            if len(current_group_of_amlists) > 0:
+                mixed_list.append(current_group_of_amlists)
+                current_group_of_amlists = []
             mixed_list.append(child)
 
     # Add the last group of lists if it exists.
