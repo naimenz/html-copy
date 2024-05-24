@@ -107,22 +107,103 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
         else:
             return AMContainer(children=parsed_children, styles=["code"])
 
-    if tag.name in ["body", "span", "div", "p", "html", "[document]", "head", "li"]:
+    if tag.name in ["body", "span", "div", "p", "html", "[document]", "head"]:
         # TODO (ian): parse styles and work out where to store them (span or leaf?)
         if len(parsed_children) == 1:
             return parsed_children[0]
         return AMContainer(children=parsed_children, styles=[])
+    if tag.name == "li":
+        # Pre-process the children in the case that we have Airtable lists.
+        ql_indent = get_airtable_ql_indent(tag)
+        if len(parsed_children) == 1:
+            return parsed_children[0]
+        return AMContainer(children=parsed_children, styles=[], ql_indent=ql_indent)
     if tag.name == "ul":
-        data_indent = tag.attrs.get("data-indent")
-        data_indent = int(data_indent) if data_indent is not None else None
+        data_indent = get_slack_data_indent(tag)
+        parsed_children = maybe_parse_airtable_list(parsed_children)
         return AMList(children=parsed_children, ordered=False, data_indent=data_indent)
     if tag.name == "ol":
-        data_indent = tag.attrs.get("data-indent")
-        data_indent = int(data_indent) if data_indent is not None else None
+        data_indent = get_slack_data_indent(tag)
+        parsed_children = maybe_parse_airtable_list(parsed_children)
         return AMList(children=parsed_children, ordered=True, data_indent=data_indent)
 
     print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {tag.children}")
     return None
+
+def maybe_parse_airtable_list(children: list[AMNode], ordered: bool) -> list[AMNode]:
+    """Parse Airtable lists into nested lists if necessary.
+    
+    Args:
+        children: The children to parse.
+    """
+    if len(children) <= 1:
+        return children
+    if not any(getattr(c, "ql_indent", 0) > 0 for c in children):
+        return children
+    
+    children_to_return = []
+    current_parent_lists: dict[int, AMList] = {}
+    prev_ql_indent = 0
+    prev_child = None
+    for i, child in enumerate(children):
+        assert isinstance(child, AMContainer)
+        if child.ql_indent == 0:
+            children_to_return.append(child)
+            continue
+
+        assert child.ql_indent <= i
+        # Make a new list if the next is more indented.
+        if child.ql_indent > prev_ql_indent:
+            if child.ql_indent != prev_ql_indent + 1:
+                raise ValueError("Currently can't handle multiple indents")
+            
+            parent = current_parent_lists.get(child.ql_indent)
+            if parent is None:
+                parent = AMList(children=[], ordered=ordered, data_indent=None)
+                current_parent_lists[prev_ql_indent] = parent
+            parent.children.append(child)
+            prev_ql_indent = child.ql_indent
+        elif child.ql_indent < prev_ql_indent:
+            parent = current_parent_lists.get(child.ql_indent)
+            if parent is None:
+                raise ValueError("No parent found")
+            parent.children.append(child)
+            prev_ql_indent = child.ql_indent
+
+
+
+
+def get_airtable_ql_indent(tag: bs4.element.Tag) -> int:
+    """Get the ql-indent attribute from a tag, or 0 if it doesn't exist.
+
+    Args:
+        tag: The tag to get the ql-indent attribute from.
+        
+    Returns:
+        The ql-indent attribute as an int.
+    """
+    # it's a class, so we need to split it
+    ql_indent = tag.attrs.get("class")
+    if ql_indent is None:
+        return 0
+    for class_name in ql_indent:
+        if class_name.startswith("ql-indent-"):
+            return int(class_name.split("-")[-1])
+    raise ValueError(f"Could not find ql-indent in {ql_indent}")
+
+def get_slack_data_indent(tag: bs4.element.Tag) -> int | None:
+    """Get the data-indent attribute from a tag, or None if it doesn't exist.
+
+    Args:
+        tag: The tag to get the data-indent attribute from.
+        
+    Returns:
+        The data-indent attribute (or similar) as an int.
+    """
+
+
+    data_indent = tag.attrs.get("data-indent")
+    return int(data_indent) if data_indent is not None else None
 
 def maybe_parse_slack_lists(children: list[AMNode]) -> list[AMNode]:
     """Parse Slack lists into nested lists if necessary."""
