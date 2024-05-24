@@ -48,6 +48,7 @@ class AMContainer(AMNode):
     """
     styles: list[Style]
     url: str | None = None
+    ql_indent: int = 0
 
     def to_html(self) -> str:
         tag = "a" if self.url is not None else "span"
@@ -86,3 +87,15 @@ class AMList(AMNode):
             else:
                 list_html += f"<li>{child_html}</li>"
         return f"<{list_type}>{list_html}</{list_type}>"
+
+# @dataclass
+# class AMListElement(AMNode):
+#     """
+#     Element in a list node in an AbstractMarkdownTree.
+
+#     Similar to li in HTML.
+#     """
+#     ql_indent: int
+
+#     def to_html(self) -> str:
+#         return "".join(child.to_html() for child in self.children)
