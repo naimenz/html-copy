@@ -104,6 +104,11 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
             return AMLeaf(children=[], text=tag.text, styles=["italic"], url=None)
         else:
             return AMContainer(children=parsed_children, styles=["italic"])
+    if tag.name in ["s"]:
+        if len(children) == 0:
+            return AMLeaf(children=[], text=tag.text, styles=["strikethrough"], url=None)
+        else:
+            return AMContainer(children=parsed_children, styles=["strikethrough"])
     if tag.name in ["u"]:
         if len(children) == 0:
             return AMLeaf(children=[], text=tag.text, styles=["underline"], url=None)
