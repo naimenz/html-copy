@@ -1,3 +1,4 @@
+from collections import deque
 import re
 import typing
 import markdown
@@ -39,6 +40,13 @@ class AbstractMarkdownTree:
 
     @staticmethod
     def from_slack(text: str) -> "AbstractMarkdownTree":
+        soup = bs4.BeautifulSoup(text, "lxml")
+        root = _parse_soup_tag(soup)
+        assert root is not None
+        return AbstractMarkdownTree(root)
+
+    @staticmethod
+    def from_airtable(text: str) -> "AbstractMarkdownTree":
         soup = bs4.BeautifulSoup(text, "lxml")
         root = _parse_soup_tag(soup)
         assert root is not None
@@ -116,61 +124,69 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
         # Pre-process the children in the case that we have Airtable lists.
         ql_indent = get_airtable_ql_indent(tag)
         if len(parsed_children) == 1:
-            return parsed_children[0]
+            # TODO(ian): Avoid wrapping in a container if it's not necessary; this is just for Airtable
+            # ql_indent)
+            # return parsed_children[0]
+            return AMContainer(children=parsed_children, styles=[], ql_indent=ql_indent)
         return AMContainer(children=parsed_children, styles=[], ql_indent=ql_indent)
-    if tag.name == "ul":
+    if tag.name in ["ul", "ol"]:
         data_indent = get_slack_data_indent(tag)
-        parsed_children = maybe_parse_airtable_list(parsed_children)
-        return AMList(children=parsed_children, ordered=False, data_indent=data_indent)
-    if tag.name == "ol":
-        data_indent = get_slack_data_indent(tag)
-        parsed_children = maybe_parse_airtable_list(parsed_children)
-        return AMList(children=parsed_children, ordered=True, data_indent=data_indent)
+        ordered = tag.name == "ol"
+        parent = AMList(children=[], ordered=ordered, data_indent=data_indent)
 
-    print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {tag.children}")
+        assert all(isinstance(c, AMContainer) for c in parsed_children)
+        parsed_children = cast(list[AMContainer], parsed_children)
+        # Modifies the parent in-place
+        parent = maybe_parse_airtable_list(parent, parsed_children)
+        return parent
+
+    print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {list(tag.children)}")
     return None
 
-def maybe_parse_airtable_list(children: list[AMNode], ordered: bool) -> list[AMNode]:
+def maybe_parse_airtable_list(parent: AMList, children: list[AMContainer]) -> AMList:
     """Parse Airtable lists into nested lists if necessary.
-    
+
+    Modifies the parent in-place. 
     Args:
         children: The children to parse.
     """
     if len(children) <= 1:
-        return children
-    if not any(getattr(c, "ql_indent", 0) > 0 for c in children):
-        return children
+        # TODO(ian): Fix type hinting here.
+        parent.children = children  # type: ignore
+        return parent
+    # TODO(ian): Separate out the logic for parsing Airtable lists.
+    if not any(c.ql_indent > 0 for c in children):
+        # TODO(ian): Fix type hinting here.
+        parent.children = children  # type: ignore
+        return parent
     
-    children_to_return = []
-    current_parent_lists: dict[int, AMList] = {}
-    prev_ql_indent = 0
-    prev_child = None
-    for i, child in enumerate(children):
-        assert isinstance(child, AMContainer)
-        if child.ql_indent == 0:
-            children_to_return.append(child)
-            continue
+    current_list = parent
+    stack = deque([current_list])
+    previous_indent = 0
 
-        assert child.ql_indent <= i
-        # Make a new list if the next is more indented.
-        if child.ql_indent > prev_ql_indent:
-            if child.ql_indent != prev_ql_indent + 1:
-                raise ValueError("Currently can't handle multiple indents")
-            
-            parent = current_parent_lists.get(child.ql_indent)
-            if parent is None:
-                parent = AMList(children=[], ordered=ordered, data_indent=None)
-                current_parent_lists[prev_ql_indent] = parent
-            parent.children.append(child)
-            prev_ql_indent = child.ql_indent
-        elif child.ql_indent < prev_ql_indent:
-            parent = current_parent_lists.get(child.ql_indent)
-            if parent is None:
-                raise ValueError("No parent found")
-            parent.children.append(child)
-            prev_ql_indent = child.ql_indent
+    for child in children:
+        indent = child.ql_indent
+        if indent == previous_indent:
+            current_list.children.append(child)
 
+        elif indent > previous_indent:
+            assert indent == previous_indent + 1
+            new_list = AMList(children=[child], ordered=parent.ordered, data_indent=parent.data_indent)
+            current_list.children.append(new_list)
+            stack.append(new_list)
+            current_list = new_list
+            previous_indent = indent
 
+        # indent < previous_indent
+        else:
+            # Pop until we reach the right level of indentation
+            for _ in range(previous_indent - indent):
+                _ = stack.pop()
+            current_list = stack[-1]
+            current_list.children.append(child)
+            previous_indent = indent
+        
+    return parent
 
 
 def get_airtable_ql_indent(tag: bs4.element.Tag) -> int:
