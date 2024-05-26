@@ -1,15 +1,11 @@
 from collections import deque
 import re
-import typing
 import markdown
-from typing import Literal, cast
+from typing import cast
 
 import bs4
 
-from slack_copy.nodes import AMLeaf, AMList, AMNode, AMContainer
-
-Style = Literal["bold", "italic", "underline", "strikethrough", "code"]
-styles: tuple[Style, ...] = typing.get_args(Style)
+from slack_copy.nodes import STYLES, AMLeaf, AMList, AMListElement, AMNode, AMContainer, AMParagraph, AMSpan
 
 
 class AbstractMarkdownTree:
@@ -92,35 +88,43 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
         if len(children) == 0:
             return AMLeaf(children=[], text=tag.text, styles=[], url=tag.attrs["href"])
         else:
-            return AMContainer(children=parsed_children, styles=[], url=tag.attrs["href"])
+            return AMSpan(children=parsed_children, styles=[], url=tag.attrs["href"])
 
     if tag.name in ["strong", "b"]:
         if len(children) == 0:
             return AMLeaf(children=[], text=tag.text, styles=["bold"], url=None)
         else:
-            return AMContainer(children=parsed_children, styles=["bold"])
+            return AMSpan(children=parsed_children, styles=["bold"])
     if tag.name in ["em", "i"]:
         if len(children) == 0:
             return AMLeaf(children=[], text=tag.text, styles=["italic"], url=None)
         else:
-            return AMContainer(children=parsed_children, styles=["italic"])
+            return AMSpan(children=parsed_children, styles=["italic"])
     if tag.name in ["s"]:
         if len(children) == 0:
             return AMLeaf(children=[], text=tag.text, styles=["strikethrough"], url=None)
         else:
-            return AMContainer(children=parsed_children, styles=["strikethrough"])
+            return AMSpan(children=parsed_children, styles=["strikethrough"])
     if tag.name in ["u"]:
         if len(children) == 0:
             return AMLeaf(children=[], text=tag.text, styles=["underline"], url=None)
         else:
-            return AMContainer(children=parsed_children, styles=["underline"])
+            return AMSpan(children=parsed_children, styles=["underline"])
     if tag.name in ["code"]:
         if len(children) == 0:
             return AMLeaf(children=[], text=tag.text, styles=["code"], url=None)
         else:
-            return AMContainer(children=parsed_children, styles=["code"])
+            return AMSpan(children=parsed_children, styles=["code"])
 
-    if tag.name in ["body", "span", "div", "p", "html", "[document]", "head"]:
+    if tag.name in ["span"]:
+        # TODO(ian): Parse styles and work out where to store them (span or leaf?)
+        for style in STYLES:
+            if style in tag.attrs.get("style", ""):
+                return AMSpan(children=parsed_children, styles=[style])
+        return AMSpan(children=parsed_children, styles=[])
+    if tag.name in ["p"]:
+        return AMParagraph(children=parsed_children, styles=[])
+    if tag.name in ["body", "span", "div", "html", "[document]", "head"]:
         # TODO (ian): parse styles and work out where to store them (span or leaf?)
         if len(parsed_children) == 1:
             return parsed_children[0]
@@ -128,19 +132,14 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
     if tag.name == "li":
         # Pre-process the children in the case that we have Airtable lists.
         ql_indent = get_airtable_ql_indent(tag)
-        if len(parsed_children) == 1:
-            # TODO(ian): Avoid wrapping in a container if it's not necessary; this is just for Airtable
-            # ql_indent)
-            # return parsed_children[0]
-            return AMContainer(children=parsed_children, styles=[], ql_indent=ql_indent)
-        return AMContainer(children=parsed_children, styles=[], ql_indent=ql_indent)
+        return AMListElement(children=parsed_children, ql_indent=ql_indent)
     if tag.name in ["ul", "ol"]:
         data_indent = get_slack_data_indent(tag)
         ordered = tag.name == "ol"
         parent = AMList(children=[], ordered=ordered, data_indent=data_indent)
 
-        assert all(isinstance(c, AMContainer) for c in parsed_children)
-        parsed_children = cast(list[AMContainer], parsed_children)
+        assert all(isinstance(c, AMListElement) for c in parsed_children)
+        parsed_children = cast(list[AMListElement], parsed_children)
         # Modifies the parent in-place
         parent = maybe_parse_airtable_list(parent, parsed_children)
         return parent
@@ -148,10 +147,11 @@ def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
     print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {list(tag.children)}")
     return None
 
-def maybe_parse_airtable_list(parent: AMList, children: list[AMContainer]) -> AMList:
+def maybe_parse_airtable_list(parent: AMList, children: list[AMListElement]) -> AMList:
     """Parse Airtable lists into nested lists if necessary.
 
     Modifies the parent in-place. 
+
     Args:
         children: The children to parse.
     """
