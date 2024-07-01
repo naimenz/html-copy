@@ -1,5 +1,5 @@
 import bs4
-from slack_copy.abstract_markdown import get_airtable_ql_indent, get_slack_data_indent, maybe_parse_airtable_list, maybe_parse_slack_lists
+from slack_copy.abstract_markdown import get_airtable_ql_indent, get_slack_data_indent, maybe_parse_airtable_list
 from slack_copy.nodes import STYLES, AMLeaf, AMNode, AMSpan, AMParagraph, AMContainer, AMListElement, AMList
 from bs4.element import PageElement, NavigableString, Tag
 from typing import cast
@@ -33,8 +33,6 @@ class HTMLParser:
         # Potentially recursive cases:
         parsed_children = self.get_parsed_children(children)
         
-        # TODO (ian): Move slack-specific parsing somewhere else.
-        parsed_children = maybe_parse_slack_lists(parsed_children)
 
         if tag.name == "a":
             return self.parse_a_tag(tag, parsed_children)
