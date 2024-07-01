@@ -1,11 +1,10 @@
-from collections import deque
 import re
 import markdown
-from typing import cast
 
-import bs4
-
-from slack_copy.nodes import STYLES, AMLeaf, AMList, AMListElement, AMNode, AMContainer, AMParagraph, AMSpan
+from slack_copy.html_parsers.airtable_parser import AirtableParser
+from slack_copy.html_parsers.html_parser import HTMLParser
+from slack_copy.html_parsers.slack_parser import SlackParser
+from slack_copy.nodes import AMNode
 
 
 class AbstractMarkdownTree:
@@ -26,8 +25,8 @@ class AbstractMarkdownTree:
     def from_obsidian(text: str, is_html: bool = True) -> "AbstractMarkdownTree":
         if not is_html:
             text = parse_obsidian_markdown(text)
-        soup = bs4.BeautifulSoup(text, "lxml")
-        root = _parse_soup_tag(soup)
+        parser = HTMLParser()
+        root = parser.parse(text)
         assert root is not None
         return AbstractMarkdownTree(root)
 
@@ -36,15 +35,15 @@ class AbstractMarkdownTree:
 
     @staticmethod
     def from_slack(text: str) -> "AbstractMarkdownTree":
-        soup = bs4.BeautifulSoup(text, "lxml")
-        root = _parse_soup_tag(soup)
+        parser = SlackParser()
+        root = parser.parse(text)
         assert root is not None
         return AbstractMarkdownTree(root)
 
     @staticmethod
     def from_airtable(text: str) -> "AbstractMarkdownTree":
-        soup = bs4.BeautifulSoup(text, "lxml")
-        root = _parse_soup_tag(soup)
+        parser = AirtableParser()
+        root = parser.parse(text)
         assert root is not None
         return AbstractMarkdownTree(root)
 
@@ -53,320 +52,14 @@ class AbstractMarkdownTree:
 
     @staticmethod
     def from_gdocs(text: str) -> "AbstractMarkdownTree":
-        soup = bs4.BeautifulSoup(text, "lxml")
-        root = _parse_soup_tag(soup)
+        parser = HTMLParser()
+        root = parser.parse(text)
         assert root is not None
         return AbstractMarkdownTree(root)
 
     def to_gdocs(self) -> str:
         raise NotImplementedError
 
-
-def _parse_soup_tag(tag: bs4.element.PageElement) -> AMNode | None:
-    """
-    Parse HTML and return an AbstractMarkdownTree.
-    """
-    # base cases
-    if isinstance(tag, bs4.element.NavigableString):
-        return AMLeaf(children=[], text=tag, styles=[], url=None)
-    if not isinstance(tag, bs4.element.Tag):
-        print(f"Base: Cannot parse type {type(tag)}: {tag}")
-        return None
-    # now we assume it's a tag
-    children = list(tag.children)
-
-    # potentially recursive cases
-    parsed_children = [_parse_soup_tag(c) for c in children]
-    parsed_children = [c for c in parsed_children if c is not None]
-    if len(parsed_children) == 0:
-        return None
-    
-    # TODO (ian): Move slack-specific parsing somewhere else.
-    parsed_children = maybe_parse_slack_lists(parsed_children)
-
-    if tag.name == "a":
-        if len(children) == 0:
-            return AMLeaf(children=[], text=tag.text, styles=[], url=tag.attrs["href"])
-        else:
-            return AMSpan(children=parsed_children, styles=[], url=tag.attrs["href"])
-
-    if tag.name in ["strong", "b"]:
-        if len(children) == 0:
-            return AMLeaf(children=[], text=tag.text, styles=["bold"], url=None)
-        else:
-            return AMSpan(children=parsed_children, styles=["bold"])
-    if tag.name in ["em", "i"]:
-        if len(children) == 0:
-            return AMLeaf(children=[], text=tag.text, styles=["italic"], url=None)
-        else:
-            return AMSpan(children=parsed_children, styles=["italic"])
-    if tag.name in ["s"]:
-        if len(children) == 0:
-            return AMLeaf(children=[], text=tag.text, styles=["strikethrough"], url=None)
-        else:
-            return AMSpan(children=parsed_children, styles=["strikethrough"])
-    if tag.name in ["u"]:
-        if len(children) == 0:
-            return AMLeaf(children=[], text=tag.text, styles=["underline"], url=None)
-        else:
-            return AMSpan(children=parsed_children, styles=["underline"])
-    if tag.name in ["code"]:
-        if len(children) == 0:
-            return AMLeaf(children=[], text=tag.text, styles=["code"], url=None)
-        else:
-            return AMSpan(children=parsed_children, styles=["code"])
-
-    if tag.name in ["span"]:
-        # TODO(ian): Parse styles and work out where to store them (span or leaf?)
-        for style in STYLES:
-            if style in tag.attrs.get("style", ""):
-                return AMSpan(children=parsed_children, styles=[style])
-        return AMSpan(children=parsed_children, styles=[])
-    if tag.name in ["p"]:
-        return AMParagraph(children=parsed_children, styles=[])
-    if tag.name in ["body", "span", "div", "html", "[document]", "head"]:
-        # TODO (ian): parse styles and work out where to store them (span or leaf?)
-        if len(parsed_children) == 1:
-            return parsed_children[0]
-        return AMContainer(children=parsed_children, styles=[])
-    if tag.name == "li":
-        # Pre-process the children in the case that we have Airtable lists.
-        ql_indent = get_airtable_ql_indent(tag)
-        return AMListElement(children=parsed_children, ql_indent=ql_indent)
-    if tag.name in ["ul", "ol"]:
-        data_indent = get_slack_data_indent(tag)
-        ordered = tag.name == "ol"
-        parent = AMList(children=[], ordered=ordered, data_indent=data_indent)
-
-        assert all(isinstance(c, AMListElement) for c in parsed_children)
-        parsed_children = cast(list[AMListElement], parsed_children)
-        # Modifies the parent in-place
-        parent = maybe_parse_airtable_list(parent, parsed_children)
-        return parent
-
-    print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {list(tag.children)}")
-    return None
-
-def maybe_parse_airtable_list(parent: AMList, children: list[AMListElement]) -> AMList:
-    """Parse Airtable lists into nested lists if necessary.
-
-    Modifies the parent in-place. 
-
-    Args:
-        children: The children to parse.
-    """
-    if len(children) <= 1:
-        # TODO(ian): Fix type hinting here.
-        parent.children = children  # type: ignore
-        return parent
-    # TODO(ian): Separate out the logic for parsing Airtable lists.
-    if not any(c.ql_indent > 0 for c in children):
-        # TODO(ian): Fix type hinting here.
-        parent.children = children  # type: ignore
-        return parent
-    
-    current_list = parent
-    stack = deque([current_list])
-    previous_indent = 0
-
-    for child in children:
-        indent = child.ql_indent
-        if indent == previous_indent:
-            current_list.children.append(child)
-
-        elif indent > previous_indent:
-            assert indent == previous_indent + 1
-            new_list = AMList(children=[child], ordered=parent.ordered, data_indent=parent.data_indent)
-            current_list.children.append(new_list)
-            stack.append(new_list)
-            current_list = new_list
-            previous_indent = indent
-
-        # indent < previous_indent
-        else:
-            # Pop until we reach the right level of indentation
-            for _ in range(previous_indent - indent):
-                _ = stack.pop()
-            current_list = stack[-1]
-            current_list.children.append(child)
-            previous_indent = indent
-        
-    return parent
-
-
-def get_airtable_ql_indent(tag: bs4.element.Tag) -> int:
-    """Get the ql-indent attribute from a tag, or 0 if it doesn't exist.
-
-    Args:
-        tag: The tag to get the ql-indent attribute from.
-        
-    Returns:
-        The ql-indent attribute as an int.
-    """
-    # it's a class, so we need to split it
-    ql_indent = tag.attrs.get("class")
-    if ql_indent is None:
-        return 0
-    for class_name in ql_indent:
-        if class_name.startswith("ql-indent-"):
-            return int(class_name.split("-")[-1])
-    raise ValueError(f"Could not find ql-indent in {ql_indent}")
-
-def get_slack_data_indent(tag: bs4.element.Tag) -> int | None:
-    """Get the data-indent attribute from a tag, or None if it doesn't exist.
-
-    Args:
-        tag: The tag to get the data-indent attribute from.
-        
-    Returns:
-        The data-indent attribute (or similar) as an int.
-    """
-
-
-    data_indent = tag.attrs.get("data-indent")
-    return int(data_indent) if data_indent is not None else None
-
-def maybe_parse_slack_lists(children: list[AMNode]) -> list[AMNode]:
-    """Parse Slack lists into nested lists if necessary."""
-    amlist_children = [c for c in children if isinstance(c, AMList)]
-    # Handle the case where there is nothing to do, either because there are no
-    # lists or because we're not parsing Slack lists (so data_indent is None).
-    if len(amlist_children) == 0 or amlist_children[0].data_indent is None:
-        return children
-
-    return_list = []
-    mixed_list = build_mixed_list(children)
-    for group in mixed_list:
-        if isinstance(group, list):
-            assert all(isinstance(g, AMList) for g in group)
-            casted_group = cast(list[AMList], group)
-            return_list.append(parse_slack_lists(casted_group))
-        # If it's not a list, it's just a single node.
-        else:
-            return_list.append(group)
-    return return_list
-
-def build_mixed_list(children: list[AMNode]) -> list[list[AMNode] | AMNode]:
-    """Takes a list of AMNodes and returns a list that's a mix between
-    AMNodes and lists of AMLists.
-
-    For example, if the input is [A, B, C, D, E, F], where A, C, D, and E are
-    AMLists, the output will be [[A], B, [C, D, E], F].
-    """
-    # Split the children into each consecutive group of lists and then
-    # parse those and put them back.
-    mixed_list = []
-    current_group_of_amlists = []
-    for child in children:
-        if isinstance(child, AMList):
-            current_group_of_amlists.append(child)
-        else:
-            if len(current_group_of_amlists) > 0:
-                mixed_list.append(current_group_of_amlists)
-                current_group_of_amlists = []
-            mixed_list.append(child)
-
-    # Add the last group of lists if it exists.
-    if len(current_group_of_amlists) > 0:
-        mixed_list.append(current_group_of_amlists)
-
-    return mixed_list
-
-
-def parse_slack_lists(siblings: list[AMList]) -> AMList:
-    """Takes a list of Slack lists and reorders  them to be nested correctly.
-    
-    This is necessary because slack uses a flat list of nodes, with nesting
-    displayed with margin-left. We need to convert this to a nested list.
-    
-    Args:
-        siblings: A list of AMNodes at the same level. For now we assume that
-            all nodes are list items.
-    
-    Returns:
-        A list containing single AMList node that contains the nested list.
-    
-    Raises:
-        ValueError: The list cannot be parsed. This can happen if the list
-            starts with a more deeply nested item than the previous one.
-    """
-    if not all(isinstance(s, AMList) for s in siblings):
-        raise ValueError("Expected only lists")
-    if len(siblings) == 0:
-        raise ValueError("Expected at least one list")
-    if len(siblings) == 1:
-        return siblings[0]
-
-    n_siblings = len(siblings)
-    # Loop over the siblings and try to nest them correctly.
-    # It shouldn't take more than n_siblings to process them all.
-    for _ in range(n_siblings):
-        siblings = parse_slack_lists_once(siblings)
-
-    if len(siblings) != 1:
-        raise ValueError("Could not parse list")
-    return siblings[0]
-
-def parse_slack_lists_once(siblings: list[AMList]) -> list[AMList]:
-    """Perform one iteration of fixing the nesting of Slack lists.
-    
-    We need to do this iteratively because we can don't know if the list
-    will need to change more.
-    
-    TODO (ian): Work out a cleaner way to do this, maybe in one pass.
-    
-    Args:
-        siblings: A list of 'n' AMList.
-
-    Returns:
-        A list of 'n-1' AMList at the same level, after two have been combined.
-    
-    Raises:
-        ValueError: The list cannot be parsed. This can happen if the list
-            starts with a more deeply nested item than the previous one.
-    """
-    siblings = siblings.copy()
-    if len(siblings) == 1:
-        # TODO (ian): Avoid returning here; we should not have
-        # ended up in this function if it was len 1.
-        return siblings
-    
-    assert siblings[0].data_indent is not None
-    assert siblings[1].data_indent is not None
-    if siblings[0].data_indent > siblings[1].data_indent:
-        raise ValueError(
-            "Cannot parse list where first list is more indented than second"
-        )
-
-    reversed_siblings = list(reversed(siblings))
-    for i in range(len(siblings) - 1):
-        sibling = reversed_siblings[i]
-        # previous_sibling in this list is the sibling that comes *before* the
-        # current one in the original list, but *after* in the reversed list.
-        previous_sibling = reversed_siblings[i + 1]
-
-        assert sibling.data_indent is not None
-        assert previous_sibling.data_indent is not None
-
-        # If the list is one more deeply nested than the previous one, make it a child.
-        if sibling.data_indent == previous_sibling.data_indent + 1:
-            previous_sibling.children.append(sibling)
-            # Remove the sibling from the list to return, since it is now
-            # a child of the previous sibling.
-            reversed_siblings.pop(i)
-            break
-            
-        # If they are at the same level, combine them.
-        if sibling.data_indent == previous_sibling.data_indent:
-            previous_sibling.children.extend(sibling.children)
-            # Remove the sibling from the list to return, since it is now
-            # combined with the previous sibling.
-            reversed_siblings.pop(i)
-            break
-        
-        # Otherwise, we just continue to the next pair.
-
-    return list(reversed(reversed_siblings))
 
 def parse_obsidian_markdown(text):
     """Parse obsidian-flavored markdown (in particular, lists) into HTML.
