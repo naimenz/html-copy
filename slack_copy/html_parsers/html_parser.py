@@ -31,10 +31,7 @@ class HTMLParser:
         children = list(tag.children)
 
         # Potentially recursive cases:
-        parsed_children = [self.recursive_parse(c) for c in children]
-        parsed_children = [c for c in parsed_children if c is not None]
-        if len(parsed_children) == 0:
-            return None
+        parsed_children = self.get_parsed_children(children)
         
         # TODO (ian): Move slack-specific parsing somewhere else.
         parsed_children = maybe_parse_slack_lists(parsed_children)
@@ -67,6 +64,10 @@ class HTMLParser:
 
     def parse_navigable_string(self, tag: NavigableString) -> AMLeaf:
         return AMLeaf(children=[], text=tag, styles=[], url=None)
+
+    def get_parsed_children(self, children: list[PageElement]) -> list[AMNode]:
+        parsed_children = [self.recursive_parse(c) for c in children]
+        return [c for c in parsed_children if c is not None]
 
     def parse_a_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMNode:
         if len(parsed_children) == 0:
