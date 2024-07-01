@@ -19,7 +19,8 @@ class AirtableParser(HTMLParser):
 
     @override
     def parse_parent_list_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMList:
-        parent = super().parse_parent_list_tag(tag, parsed_children)
+        ordered = tag.name == "ol"
+        parent = AMList(children=[], ordered=ordered)
         assert all(isinstance(c, AMListElement) for c in parsed_children)
         list_children = cast(list[AMListElement], parsed_children)
         # Modifies the parent in-place
