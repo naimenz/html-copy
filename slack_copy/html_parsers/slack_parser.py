@@ -1,4 +1,3 @@
-
 from typing import cast
 from typing_extensions import override
 
@@ -10,10 +9,17 @@ from slack_copy.nodes import AMList, AMNode
 
 class SlackParser(HTMLParser):
     """Parse Slack-flavored HTML."""
+
     @override
     def get_parsed_children(self, children: list[PageElement]) -> list[AMNode]:
         parsed_children = super().get_parsed_children(children)
         return maybe_parse_slack_lists(parsed_children)
+
+    @override
+    def parse_parent_list_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMList:
+        data_indent = get_slack_data_indent(tag)
+        ordered = tag.name == "ol"
+        return AMList(children=parsed_children, ordered=ordered, data_indent=data_indent)
 
 
 def maybe_parse_slack_lists(children: list[AMNode]) -> list[AMNode]:
@@ -37,17 +43,15 @@ def maybe_parse_slack_lists(children: list[AMNode]) -> list[AMNode]:
     return return_list
 
 
-
 def get_slack_data_indent(tag: Tag) -> int | None:
     """Get the data-indent attribute from a tag, or None if it doesn't exist.
 
     Args:
         tag: The tag to get the data-indent attribute from.
-        
+
     Returns:
         The data-indent attribute (or similar) as an int.
     """
-
 
     data_indent = tag.attrs.get("data-indent")
     return int(data_indent) if data_indent is not None else None
@@ -82,17 +86,17 @@ def build_mixed_list(children: list[AMNode]) -> list[list[AMNode] | AMNode]:
 
 def parse_slack_lists(siblings: list[AMList]) -> AMList:
     """Takes a list of Slack lists and reorders  them to be nested correctly.
-    
+
     This is necessary because slack uses a flat list of nodes, with nesting
     displayed with margin-left. We need to convert this to a nested list.
-    
+
     Args:
         siblings: A list of AMNodes at the same level. For now we assume that
             all nodes are list items.
-    
+
     Returns:
         A list containing single AMList node that contains the nested list.
-    
+
     Raises:
         ValueError: The list cannot be parsed. This can happen if the list
             starts with a more deeply nested item than the previous one.
@@ -114,20 +118,21 @@ def parse_slack_lists(siblings: list[AMList]) -> AMList:
         raise ValueError("Could not parse list")
     return siblings[0]
 
+
 def parse_slack_lists_once(siblings: list[AMList]) -> list[AMList]:
     """Perform one iteration of fixing the nesting of Slack lists.
-    
+
     We need to do this iteratively because we can don't know if the list
     will need to change more.
-    
+
     TODO (ian): Work out a cleaner way to do this, maybe in one pass.
-    
+
     Args:
         siblings: A list of 'n' AMList.
 
     Returns:
         A list of 'n-1' AMList at the same level, after two have been combined.
-    
+
     Raises:
         ValueError: The list cannot be parsed. This can happen if the list
             starts with a more deeply nested item than the previous one.
@@ -137,7 +142,7 @@ def parse_slack_lists_once(siblings: list[AMList]) -> list[AMList]:
         # TODO (ian): Avoid returning here; we should not have
         # ended up in this function if it was len 1.
         return siblings
-    
+
     assert siblings[0].data_indent is not None
     assert siblings[1].data_indent is not None
     if siblings[0].data_indent > siblings[1].data_indent:
@@ -162,7 +167,7 @@ def parse_slack_lists_once(siblings: list[AMList]) -> list[AMList]:
             # a child of the previous sibling.
             reversed_siblings.pop(i)
             break
-            
+
         # If they are at the same level, combine them.
         if sibling.data_indent == previous_sibling.data_indent:
             previous_sibling.children.extend(sibling.children)
@@ -170,7 +175,7 @@ def parse_slack_lists_once(siblings: list[AMList]) -> list[AMList]:
             # combined with the previous sibling.
             reversed_siblings.pop(i)
             break
-        
+
         # Otherwise, we just continue to the next pair.
 
     return list(reversed(reversed_siblings))

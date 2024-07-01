@@ -30,6 +30,8 @@ class HTMLParser:
 
         # Potentially recursive cases:
         parsed_children = self.get_parsed_children(children)
+        if len(parsed_children) == 0:
+            return None
         
 
         if tag.name == "a":
@@ -122,4 +124,4 @@ class HTMLParser:
 
     def parse_parent_list_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMList:
         ordered = tag.name == "ol"
-        return AMList(children=[], ordered=ordered)
+        return AMList(children=parsed_children, ordered=ordered)
