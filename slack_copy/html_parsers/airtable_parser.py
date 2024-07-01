@@ -19,16 +19,13 @@ class AirtableParser(HTMLParser):
 
     @override
     def parse_parent_list_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMList:
-        ordered = tag.name == "ol"
-        parent = AMList(children=[], ordered=ordered)
-        assert all(isinstance(c, AMListElement) for c in parsed_children)
-        list_children = cast(list[AMListElement], parsed_children)
+        parent = super().parse_parent_list_tag(tag, parsed_children)
         # Modifies the parent in-place
-        parent = maybe_parse_airtable_list(parent, list_children)
+        parent = maybe_parse_airtable_list(parent)
         return parent
 
 
-def maybe_parse_airtable_list(parent: AMList, children: list[AMListElement]) -> AMList:
+def maybe_parse_airtable_list(parent: AMList) -> AMList:
     """Parse Airtable lists into nested lists if necessary.
 
     Modifies the parent in-place. 
@@ -36,6 +33,9 @@ def maybe_parse_airtable_list(parent: AMList, children: list[AMListElement]) -> 
     Args:
         children: The children to parse.
     """
+    children = parent.children
+    assert all(isinstance(c, AMListElement) for c in children)
+    children = cast(list[AMListElement], children)
     if len(children) <= 1:
         # TODO(ian): Fix type hinting here.
         parent.children = children  # type: ignore
