@@ -1,8 +1,6 @@
 import bs4
-from slack_copy.abstract_markdown import get_airtable_ql_indent, get_slack_data_indent, maybe_parse_airtable_list
 from slack_copy.nodes import STYLES, AMLeaf, AMNode, AMSpan, AMParagraph, AMContainer, AMListElement, AMList
 from bs4.element import PageElement, NavigableString, Tag
-from typing import cast
 
 class HTMLParser:
     """The basic HTML parser class, with default parsing for each tag.
@@ -123,6 +121,5 @@ class HTMLParser:
         return AMListElement(children=parsed_children)
 
     def parse_parent_list_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMList:
-        data_indent = get_slack_data_indent(tag)
         ordered = tag.name == "ol"
-        return AMList(children=[], ordered=ordered, data_indent=data_indent)
+        return AMList(children=[], ordered=ordered)
