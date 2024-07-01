@@ -137,8 +137,13 @@ class AMListElement(AMNode):
     Element in a list node in an AbstractMarkdownTree.
 
     Similar to li in HTML.
+
+    Attributes:
+        ql_indent: The indentation level of the list element (only used when parsing
+            Airtable HTML, which uses margin-left for indentation instead of nested
+            lists).
     """
-    ql_indent: int
+    ql_indent: int = 0
 
     def to_html(self) -> str:
         return "".join(child.to_html() for child in self.children)

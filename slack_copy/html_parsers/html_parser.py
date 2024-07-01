@@ -55,7 +55,7 @@ class HTMLParser:
         if tag.name == "li":
             return self.parse_li_tag(tag, parsed_children)
         if tag.name in ["ul", "ol"]:
-            return self.parse_list_element_tag(tag, parsed_children)
+            return self.parse_parent_list_tag(tag, parsed_children)
 
         print(f"End: Cannot parse tag {tag.name} with attrs {tag.attrs} and children {list(tag.children)}")
         return None
@@ -103,14 +103,14 @@ class HTMLParser:
         else:
             return AMSpan(children=parsed_children, styles=["code"])
 
-    def parse_span_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMNode:
+    def parse_span_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMSpan:
         # TODO(ian): Parse styles and work out where to store them (span or leaf?)
         for style in STYLES:
             if style in tag.attrs.get("style", ""):
                 return AMSpan(children=parsed_children, styles=[style])
         return AMSpan(children=parsed_children, styles=[])
 
-    def parse_p_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMNode:
+    def parse_p_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMParagraph:
         return AMParagraph(children=parsed_children, styles=[])
 
     def parse_container_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMNode:
@@ -119,18 +119,10 @@ class HTMLParser:
             return parsed_children[0]
         return AMContainer(children=parsed_children, styles=[])
 
-    def parse_li_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMNode:
-        # Pre-process the children in the case that we have Airtable lists.
-        ql_indent = get_airtable_ql_indent(tag)
-        return AMListElement(children=parsed_children, ql_indent=ql_indent)
+    def parse_li_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMListElement:
+        return AMListElement(children=parsed_children)
 
-    def parse_list_element_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMNode:
+    def parse_parent_list_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMList:
         data_indent = get_slack_data_indent(tag)
         ordered = tag.name == "ol"
-        parent = AMList(children=[], ordered=ordered, data_indent=data_indent)
-
-        assert all(isinstance(c, AMListElement) for c in parsed_children)
-        list_children = cast(list[AMListElement], parsed_children)
-        # Modifies the parent in-place
-        parent = maybe_parse_airtable_list(parent, list_children)
-        return parent
+        return AMList(children=[], ordered=ordered, data_indent=data_indent)
