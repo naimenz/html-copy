@@ -2,6 +2,7 @@ import re
 import markdown
 
 from slack_copy.html_parsers.airtable_parser import AirtableParser
+from slack_copy.html_parsers.gdocs_parser import GDocsParser
 from slack_copy.html_parsers.html_parser import HTMLParser
 from slack_copy.html_parsers.slack_parser import SlackParser
 from slack_copy.nodes import AMNode
@@ -52,7 +53,7 @@ class AbstractMarkdownTree:
 
     @staticmethod
     def from_gdocs(text: str) -> "AbstractMarkdownTree":
-        parser = HTMLParser()
+        parser = GDocsParser()
         root = parser.parse(text)
         assert root is not None
         return AbstractMarkdownTree(root)
