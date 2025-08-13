@@ -1,29 +1,33 @@
-[tool.poetry]
+[project]
 name = "slack-copy"
 version = "0.1.0"
 description = ""
-authors = ["Ian McKenzie <ianmck98@gmail.com>"]
+authors = [{ name = "Ian McKenzie", email = "ianmck98@gmail.com" }]
+requires-python = "~=3.11"
 readme = "README.md"
-packages = [{include = "slack_copy"}]
+dependencies = [
+    "pynput>=1.7.6,<2",
+    "pygobject>=3.46.0,<4",
+    "pyqt5>=5.15.10,<6",
+    "beautifulsoup4>=4.12.3,<5",
+    "lxml>=5.1.0,<6",
+    "markdown>=3.5.2,<4",
+    "pymdown-extensions>=10.7.1,<11",
+    "typing-extensions>=4.12.2,<5",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-pynput = "^1.7.6"
-pygobject = "^3.46.0"
-pyqt5 = "^5.15.10"
-beautifulsoup4 = "^4.12.3"
-lxml = "^5.1.0"
-markdown = "^3.5.2"
-pymdown-extensions = "^10.7.1"
-typing-extensions = "^4.12.2"
+[project.scripts]
+slack-copy = "slack_copy.main:main"
 
+[dependency-groups]
+dev = ["ipykernel>=6.29.0,<7"]
 
-[tool.poetry.group.dev.dependencies]
-ipykernel = "^6.29.0"
+[tool.hatch.build.targets.sdist]
+include = ["slack_copy"]
+
+[tool.hatch.build.targets.wheel]
+include = ["slack_copy"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-slack-copy = "slack_copy.main:main"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
