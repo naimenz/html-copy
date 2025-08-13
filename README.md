@@ -16,9 +16,9 @@ To use it at the moment, you should:
         1. Run `python -m venv .venv`
         2. Activate the `venv` with `source .venv/bin/activate`
         3. Run `pip install .`
-    3. Alternatively if you have `poetry` installed you can do:
-        1. `poetry shell`
-        2. `poetry install`
+    3. Alternatively if you have `uv` installed you can do:
+        1. `uv venv`
+        2. `uv sync`
 2. You may encounter some errors installing - if so, use `brew`/`apt` to install the  missing dependencies.
 3. From inside, that `venv`, run `slack-copy`
     - This will start a loop that checks your clipboard and modifies it if it finds a match to one of the formats it can parse.
