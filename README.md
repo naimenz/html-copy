@@ -26,3 +26,22 @@ To use it at the moment, you should:
         - You clipboard content is not stored or sent anywhere.
         - If the format is not a match, it should leave your clipboard alone.
 4. I'd recommend opening a new terminal, activating the `venv`, running `slack-copy` in there, and leaving it open. 
+
+## Currently Supported Workflows
+This is very much an alpha, so 'supported' means 'it works at all, on some minimal examples'. Let me know if there are specific bugs or missing features that are impacting your ability to use the app.
+
+### Slack
+- Copying from Slack is reasonably well-supported.
+- Copying to Slack is reasonably well-supported, by converting to Markdown.
+### Google docs
+- Copying from GDocs is reasonably well-supported.
+- Copying to GDocs is reasonably well-supported, either as HTML or as 'right click -> paste from Markdown'
+### Obsidian
+- Copying from Obsidian is reasonably well-supported as Markdown (in `edit` mode), and less good as rich text (in `view` mode)
+- Copying to Obsidian is reasonably well-supported.
+### Airtable
+- Copying from Airtable has been used in practice and works okay.
+- Copying to Airtable is untested.
+### Other apps
+- Let me know if there are other apps you'd like to have supported.
+- I might try Google Chat soon.
