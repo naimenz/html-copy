@@ -1,12 +1,7 @@
-
-from collections import deque
-from typing import cast
-from typing_extensions import override
-
 from bs4.element import Tag
 
 from slack_copy.html_parsers.html_parser import HTMLParser
-from slack_copy.nodes import AMContainer, AMList, AMListElement, AMNode, AMSpan, AMWrapper
+from slack_copy.nodes import AMList, AMNode, AMSpan, AMWrapper
 
 
 class GDocsParser(HTMLParser):
@@ -24,16 +19,30 @@ class GDocsParser(HTMLParser):
             return parsed_children[0]
         # HACK: Turn the container into a span.
         return AMSpan(children=parsed_children, styles=[])
-
-    # def parse_span_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMSpan:
-    #     """Remove <span> tags for gdocs.
+    
+    def parse_strong_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMNode:
+        """Remove <strong> or <b> tags for gdocs.
         
-    #     GDocs seems to add unnecessary <span> tags that add whitespace when pasted
-    #     into other text editors. So instead of returning a span, we return a container.
-    #     """
-    #     if len(parsed_children) == 1:
-    #         return parsed_children[0]
-    #     return AMSpan(children=parsed_children, styles=[])
+        GDocs puts <b> around the whole sentence(?) whenever there's bold text.
+        It then uses font-weight on <span> to actually make things bold/not bold.
+        Thus we just return the child, and we'll parse bold from attributes of the
+        <span>.
+        """
+        return AMSpan(children=parsed_children, styles=[])
+
+    def parse_span_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMSpan:
+        """Parse the attributes of a gdocs <span> tag.
+        
+        """
+        span = super().parse_span_tag(tag, parsed_children)
+        tag_style = tag.attrs.get("style", "")
+        if "font-weight:700;" in tag_style:
+            span = AMSpan(children=parsed_children, styles=span.styles + ["bold"])
+        if "monospace" in tag_style and "color:#188038" in tag_style:
+            span = AMSpan(children=parsed_children, styles=span.styles + ["code"])
+        
+        return span
+
     def parse_parent_list_tag(self, tag: Tag, parsed_children: list[AMNode]) -> AMList:
         """Parse the children of a gdocs list element.
         
@@ -74,17 +83,12 @@ def parse_gdocs_list(gdocs_list: AMList) -> AMList:
     # Otherwise, we combine nested lists into the previous <li> tag.
     new_children = []
     previous_li = children[0]
-    just_added = False
     for child in children[1:]:
         if isinstance(child, AMList):
             previous_li = AMWrapper(children=[previous_li, child])
-            gdocs_list.children.append(child)
-            just_added = False
         else:
             new_children.append(previous_li)
             previous_li = child
-            just_added = True
-    if not just_added:
-        new_children.append(previous_li)
+    new_children.append(previous_li)
     new_list = AMList(children=new_children, ordered=gdocs_list.ordered, data_indent=gdocs_list.data_indent)
     return new_list

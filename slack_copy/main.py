@@ -6,7 +6,9 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import QMimeData
 import sys
 
+
 from slack_copy.abstract_markdown import AbstractMarkdownTree
+from slack_copy.custom_markdown_converter import custom_markdownify
 
 @dataclass
 class ClipboardContents:
@@ -89,7 +91,8 @@ def process_contents(contents: ClipboardContents) -> ClipboardContents:
         print(f"Error: {e}")
         return contents
     html = amtree.to_html()
-    return ClipboardContents(contents.text, html)
+    markdown = custom_markdownify(html, bullets="-")
+    return ClipboardContents(markdown, html)
  
 def main():
     while True:
