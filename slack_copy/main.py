@@ -15,7 +15,8 @@ class ClipboardContents:
 
 SourceIndicators = {
     "gdocs": "docs-internal",
-    "obsidian": "Microsoft YaHei Light",
+    # "obsidian": "Microsoft YaHei Light",
+    "obsidian": "rgb(218, 218, 218)",
     "slack": "Slack-Lato",
     "airtable": "Roboto, Oxygen-Sans, Ubuntu, Cantarell"
 }
@@ -64,7 +65,8 @@ def html_to_amtree(html: str) -> AbstractMarkdownTree:
         return AbstractMarkdownTree.from_airtable(html)
     # I think this font is only used in Obsidian
     elif SourceIndicators["obsidian"] in html:
-        raise NotImplementedError("Haven't implemented parsing from Obsidian yet")
+        return AbstractMarkdownTree.from_obsidian(html)
+        # raise NotImplementedError("Haven't implemented parsing from Obsidian yet")
     else:
         raise ValueError("Unknown source for HTML")
 
