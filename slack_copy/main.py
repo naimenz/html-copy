@@ -6,7 +6,9 @@ from PyQt5 import QtCore
 from PyQt5.QtCore import QMimeData
 import sys
 
+
 from slack_copy.abstract_markdown import AbstractMarkdownTree
+from slack_copy.custom_markdown_converter import custom_markdownify
 
 @dataclass
 class ClipboardContents:
@@ -15,7 +17,8 @@ class ClipboardContents:
 
 SourceIndicators = {
     "gdocs": "docs-internal",
-    "obsidian": "Microsoft YaHei Light",
+    # "obsidian": "Microsoft YaHei Light",
+    "obsidian": "rgb(218, 218, 218)",
     "slack": "Slack-Lato",
     "airtable": "Roboto, Oxygen-Sans, Ubuntu, Cantarell"
 }
@@ -64,7 +67,8 @@ def html_to_amtree(html: str) -> AbstractMarkdownTree:
         return AbstractMarkdownTree.from_airtable(html)
     # I think this font is only used in Obsidian
     elif SourceIndicators["obsidian"] in html:
-        raise NotImplementedError("Haven't implemented parsing from Obsidian yet")
+        return AbstractMarkdownTree.from_obsidian(html)
+        # raise NotImplementedError("Haven't implemented parsing from Obsidian yet")
     else:
         raise ValueError("Unknown source for HTML")
 
@@ -87,7 +91,8 @@ def process_contents(contents: ClipboardContents) -> ClipboardContents:
         print(f"Error: {e}")
         return contents
     html = amtree.to_html()
-    return ClipboardContents(contents.text, html)
+    markdown = custom_markdownify(html, bullets="-")
+    return ClipboardContents(markdown, html)
  
 def main():
     while True:

@@ -147,3 +147,13 @@ class AMListElement(AMNode):
 
     def to_html(self) -> str:
         return "".join(child.to_html() for child in self.children)
+
+@dataclass
+class AMWrapper(AMNode):
+    """Custom node that gets ignored while constructing HTML.
+    
+    This is used to wrap other nodes so they can be treated as
+    one in our abstract tree.
+    """
+    def to_html(self) -> str:
+        return "".join(child.to_html() for child in self.children)
